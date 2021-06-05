@@ -1,0 +1,76 @@
+---
+title: "DataProductsPlotlyDemo"
+author: "Chia-Hsun Cheng"
+date: "6/5/2021"
+output:
+  ioslides_presentation: default
+  beamer_presentation: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Covid 19 Confirmed Cases
+
+```{r, message = FALSE}
+# https://bookdown.org/yihui/rmarkdown-cookbook/hide-one.html
+
+library(httr)
+# https://documenter.getpostman.com/view/11144369/Szf6Z9B3?version=latest
+r <- GET("https://corona.lmao.ninja/v2/historical/USA,India,UK,France,China,Russian,Japan?lastdays=180")
+textContent <- content(r, "text")
+library(rjson)
+jsonData <- fromJSON(textContent)
+
+library(dplyr)
+df <- NULL
+for (i in 1:length(jsonData)) {
+  country <- jsonData[[i]]$country
+  province <- jsonData[[i]]$province
+  for (k in 1:length(jsonData[[i]]$timeline$cases)) {
+    datetime <- names(jsonData[[i]]$timeline$cases[k])
+    cases <-jsonData[[i]]$timeline$cases[[k]]
+    deaths <- jsonData[[i]]$timeline$deaths[[k]]
+    recovered <- jsonData[[i]]$timeline$recovered[[k]]
+    df = bind_rows(df, c(country = country,
+                         province = province,
+                         cases = cases,
+                         deaths = deaths,
+                         recovered = recovered,
+                         datetime = datetime
+                       )) 
+  }
+}
+
+df$cases <- as.numeric(df$cases)
+df$deaths <- as.numeric(df$deaths)
+df$recovered <- as.numeric(df$recovered)
+
+library(lubridate)
+df$datetime <- mdy(df$datetime)
+df <- mutate(df, month = paste(year(datetime), "/", month(datetime), sep=""))
+
+countryDf <- df %>%
+  group_by(country, month) %>%
+  summarize(datetime = last(datetime), cases = last(cases), deaths = last(deaths), recovered = last(recovered))
+
+selectedCountry <- countryDf
+  
+library(plotly)
+plot_ly(selectedCountry, x = ~datetime, y = ~cases, color = ~as.factor(country), mode = 'line', type="scatter")
+```
+
+
+## Covid 19 Deaths
+
+```{r}
+plot_ly(selectedCountry, x = ~datetime, y = ~deaths, color = ~as.factor(country), mode = 'line', type="scatter")
+```
+
+## Covid 19 Recovered Cases
+
+```{r}
+plot_ly(selectedCountry, x = ~datetime, y = ~recovered, color = ~as.factor(country), mode = 'line', type="scatter")
+```
+
